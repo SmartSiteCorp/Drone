@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    /* Runtime */
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+
+    /* Paths */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* Type safety */
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Dev comfort */
+    "skipLibCheck": true
+  },
+  
+}
