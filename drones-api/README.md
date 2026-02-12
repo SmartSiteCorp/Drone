@@ -194,7 +194,7 @@ const socket = io("http://localhost:7281", {
   }
 });
 
-socket.on("hello", (data) => {
+socket.on("connected", (data) => {
   console.log("Connecté :", data);
 });
 

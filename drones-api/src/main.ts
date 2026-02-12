@@ -16,5 +16,5 @@ useApiKeyAuth(io);
 registerSocketHandlers(io);
 
 server.listen(PORT, () => {
-  console.log(`API running on http://localhost:${PORT}`);
+  console.log(`Serveur lancé sur http://localhost:${PORT}`);
 });

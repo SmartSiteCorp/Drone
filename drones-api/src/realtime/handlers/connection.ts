@@ -12,7 +12,7 @@ export function onConnection(_io: Server, socket: Socket) {
 
   // envoie un message de bienvenue avec les infos d'authentification
   setTimeout(() => {
-    socket.emit("hello", {
+    socket.emit("connected", {
       ok: true,
       deviceId: auth?.deviceId,
       scopes: auth?.scopes,
