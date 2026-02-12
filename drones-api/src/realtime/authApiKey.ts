@@ -26,8 +26,13 @@ function getApiKeyFromSocket(socket: Socket): string | null {
 export function useApiKeyAuth(io: Server) {
   io.use(async (socket, next) => {
     try {
+      console.log("[sio] Tentative de connexion depuis l'id:", socket.id);
+
       const apiKey = getApiKeyFromSocket(socket);
-      if (!apiKey) return next(new Error("Missing apiKey"));
+      if (!apiKey) {
+        console.warn("[sio] apiKey manquante pour la socket id:", socket.id);
+        return next(new Error("Missing apiKey"));
+      }
 
       const keyPrefix = getKeyPrefix(apiKey);
 
@@ -47,16 +52,27 @@ export function useApiKeyAuth(io: Server) {
         [keyPrefix],
       );
 
-      if (r.rowCount === 0) return next(new Error("Unauthorized"));
+      if (r.rowCount === 0) { 
+        console.warn("[sio] apiKey non trouvée pour le préfixe:", keyPrefix + " (socket id: " + socket.id + ")");
+        return next(new Error("Unauthorized"));
+      }
 
       const now = new Date();
 
       for (const row of r.rows) {
-        if (row.revoked_at) continue;
-        if (row.expires_at && new Date(row.expires_at) <= now) continue;
+        if (row.revoked_at) { 
+          console.warn("[sio] apiKey révoquée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
+          continue;}
+        if (row.expires_at && new Date(row.expires_at) <= now) {
+          console.warn("[sio] apiKey expirée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
+          continue;
+        }
 
         const ok = verifyApiKey(apiKey, row.key_hash);
-        if (!ok) continue;
+        if (!ok) {
+          console.warn("[sio] apiKey invalide (id:", row.api_key_id + ", socket id: " + socket.id + ")");
+          continue;
+        }
 
         // succès: on met le contexte auth dans socket.data
         socket.data.auth = {
@@ -74,9 +90,10 @@ export function useApiKeyAuth(io: Server) {
 
         return next();
       }
-
+      console.warn("[sio] Aucune apiKey valide trouvée pour la socket id: " + socket.id);
       return next(new Error("Unauthorized"));
     } catch (e) {
+      console.error("Erreur interne dans le middleware Socket.IO d'authentification", e);
       return next(e as Error);
     }
   });
