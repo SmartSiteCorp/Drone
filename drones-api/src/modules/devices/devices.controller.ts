@@ -1,7 +1,13 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { CreateDeviceSchema } from "./devices.schemas";
-import { createDevice, getDeviceById, listDevices } from "./devices.service";
+import {
+  createDevice,
+  getDeviceById,
+  listDevices,
+  listRelays,
+  listDashboards,
+} from "./devices.service";
 
 const DeviceIdParamSchema = z.object({
   id: z.string().uuid(),
@@ -15,7 +21,8 @@ export async function createDeviceHandler(req: Request, res: Response) {
 
 export async function listDevicesHandler(req: Request, res: Response) {
   const parseQueryInt = (raw: unknown, defaultVal: number): number => {
-    const str = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
+    const str =
+      typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
     const num = str ? Number(str) : defaultVal;
     return Number.isFinite(num) ? num : defaultVal;
   };
@@ -41,4 +48,14 @@ export async function getDeviceByIdHandler(req: Request, res: Response) {
   }
 
   res.json({ device });
+}
+
+export async function getAllRelays(req: Request, res: Response) {
+  const relays = await listRelays();
+  res.json({ relays });
+}
+
+export async function getAllDashboards(req: Request, res: Response) {
+  const dashboards = await listDashboards();
+  res.json({ dashboards });
 }

@@ -67,7 +67,7 @@ docker-compose up -d
 ### 2. Initialiser le schéma
 
 ```bash
-docker exec -i drones-api-db psql -U drones -d drones_api < sql/init.sql
+docker exec -i drones-api-db psql -U drones -d drones_api < database/init.sql
 ```
 
 ### 3. Lancer le serveur

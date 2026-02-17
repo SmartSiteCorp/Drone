@@ -1,6 +1,10 @@
 import { pool } from "../../db/pool";
 import type { CreateDeviceInput } from "./devices.schemas";
-import { generateApiKey, getKeyPrefix, hashApiKey } from "../auth/apiKeys.crypto";
+import {
+  generateApiKey,
+  getKeyPrefix,
+  hashApiKey,
+} from "../auth/apiKeys.crypto";
 import { toDevice, type DeviceRow } from "./devices.mapper";
 import { defaultScopesForDevice } from "../auth/scopes";
 import { Device } from "./devices.model";
@@ -10,8 +14,9 @@ export async function createDevice(input: CreateDeviceInput) {
   const keyPrefix = getKeyPrefix(apiKey);
   const keyHash = hashApiKey(apiKey);
 
-  const scopes =
-    input.scopes?.length ? input.scopes : defaultScopesForDevice(input.type);
+  const scopes = input.scopes?.length
+    ? input.scopes
+    : defaultScopesForDevice(input.type);
 
   const client = await pool.connect();
   try {
@@ -21,7 +26,7 @@ export async function createDevice(input: CreateDeviceInput) {
       `INSERT INTO devices (name, type)
        VALUES ($1, $2)
        RETURNING id, name, type, created_at`,
-      [input.name, input.type]
+      [input.name, input.type],
     );
 
     const device = toDevice(deviceRes.rows[0]);
@@ -30,7 +35,7 @@ export async function createDevice(input: CreateDeviceInput) {
       `INSERT INTO api_keys (device_id, key_prefix, key_hash, scopes)
        VALUES ($1, $2, $3, $4)
        RETURNING id, key_prefix, scopes, created_at`,
-      [device.id, keyPrefix, keyHash, scopes]
+      [device.id, keyPrefix, keyHash, scopes],
     );
 
     const apiKeyRow = keyRes.rows[0];
@@ -62,7 +67,10 @@ export interface PaginatedDevices {
   offset: number;
 }
 
-export async function listDevices(limit = 100, offset = 0): Promise<PaginatedDevices> {
+export async function listDevices(
+  limit = 100,
+  offset = 0,
+): Promise<PaginatedDevices> {
   const safeLimit = Math.min(Math.max(limit, 1), 500);
   const safeOffset = Math.max(offset, 0);
 
@@ -72,7 +80,7 @@ export async function listDevices(limit = 100, offset = 0): Promise<PaginatedDev
        FROM devices
        ORDER BY created_at DESC
        LIMIT $1 OFFSET $2`,
-      [safeLimit, safeOffset]
+      [safeLimit, safeOffset],
     ),
     pool.query<{ count: string }>(`SELECT COUNT(*) as count FROM devices`),
   ]);
@@ -90,8 +98,30 @@ export async function getDeviceById(id: string): Promise<Device | null> {
     `SELECT id, name, type, created_at
      FROM devices
      WHERE id = $1`,
-    [id]
+    [id],
   );
 
   return r.rowCount ? toDevice(r.rows[0]) : null;
+}
+
+export async function listRelays(): Promise<Device[]> {
+  const result = await pool.query<DeviceRow>(
+    `SELECT id, name, type, created_at
+     FROM devices
+     WHERE type = 'relay'
+     ORDER BY created_at DESC`,
+  );
+
+  return result.rows.map(toDevice);
+}
+
+export async function listDashboards(): Promise<Device[]> {
+  const result = await pool.query<DeviceRow>(
+    `SELECT id, name, type, created_at
+     FROM devices
+     WHERE type = 'dashboard'
+     ORDER BY created_at DESC`,
+  );
+
+  return result.rows.map(toDevice);
 }
