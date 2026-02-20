@@ -7,6 +7,6 @@ export function registerSocketHandlers(io: Server) {
   io.on("connection", (socket) => {
     onConnection(io, socket);
     registerTelemetryHandlers(io, socket);
-    registerCommandHandlers(io, socket);
+    registerCommandHandlers(io);
   });
 }

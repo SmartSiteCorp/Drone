@@ -4,6 +4,7 @@ import { createApp } from "./app";
 import { createIO } from "./realtime/io";
 import { registerSocketHandlers } from "./realtime";
 import { useApiKeyAuth } from "./realtime/authApiKey";
+import { logger } from "./core/logger";
 
 const PORT = Number(process.env.PORT ?? 7281);
 
@@ -16,5 +17,5 @@ useApiKeyAuth(io);
 registerSocketHandlers(io);
 
 server.listen(PORT, () => {
-  console.log(`Serveur lancé sur http://localhost:${PORT}`);
+  logger.info(`Server lancé sur http://localhost:${PORT}`);
 });

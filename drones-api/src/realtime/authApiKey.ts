@@ -1,6 +1,8 @@
 import type { Server, Socket } from "socket.io";
 import { pool } from "../db/pool";
 import { getKeyPrefix, verifyApiKey } from "../modules/auth/apiKeys.crypto";
+import { logger } from "../core/logger";
+import { log } from "node:console";
 
 type DbRow = {
   api_key_id: string;
@@ -26,10 +28,12 @@ function getApiKeyFromSocket(socket: Socket): string | null {
 export function useApiKeyAuth(io: Server) {
   io.use(async (socket, next) => {
     try {
+      logger.info("[sio] Tentative de connexion depuis l'id:", { socketId: socket.id });
       console.log("[sio] Tentative de connexion depuis l'id:", socket.id);
 
       const apiKey = getApiKeyFromSocket(socket);
       if (!apiKey) {
+        logger.warn("[sio] apiKey manquante pour la socket id:", socket.id);
         console.warn("[sio] apiKey manquante pour la socket id:", socket.id);
         return next(new Error("Missing apiKey"));
       }
@@ -61,15 +65,18 @@ export function useApiKeyAuth(io: Server) {
 
       for (const row of r.rows) {
         if (row.revoked_at) { 
+          logger.warn("[sio] apiKey révoquée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
           console.warn("[sio] apiKey révoquée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
           continue;}
         if (row.expires_at && new Date(row.expires_at) <= now) {
+          logger.warn("[sio] apiKey expirée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
           console.warn("[sio] apiKey expirée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
           continue;
         }
 
         const ok = verifyApiKey(apiKey, row.key_hash);
         if (!ok) {
+          logger.warn("[sio] apiKey invalide (id:", row.api_key_id + ", socket id: " + socket.id + ")");
           console.warn("[sio] apiKey invalide (id:", row.api_key_id + ", socket id: " + socket.id + ")");
           continue;
         }
@@ -90,10 +97,10 @@ export function useApiKeyAuth(io: Server) {
 
         return next();
       }
-      console.warn("[sio] Aucune apiKey valide trouvée pour la socket id: " + socket.id);
+      logger.warn("[sio] Aucune apiKey valide trouvée pour la socket id: " + socket.id);
       return next(new Error("Unauthorized"));
     } catch (e) {
-      console.error("Erreur interne dans le middleware Socket.IO d'authentification", e);
+      logger.error("Erreur interne dans le middleware Socket.IO d'authentification", e);
       return next(e as Error);
     }
   });
