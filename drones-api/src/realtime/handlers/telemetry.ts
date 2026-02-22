@@ -31,6 +31,18 @@ export function registerTelemetryHandlers(io: Server, socket: Socket) {
         return;
       }
 
+      // ✅ autorisation relay -> drone
+      const allowed: Set<string> | undefined = socket.data.allowedDroneIds;
+
+      if (!allowed || !allowed.has(payload.droneId)) {
+        socket.emit("app:error", {
+          event: "telemetry:push",
+          message: "Drone non autorisé pour ce relay",
+          droneId: payload.droneId,
+        });
+        return;
+      }
+
       io.to(roomDrone(payload.droneId)).emit("telemetry:update", {
         ...payload,
         sourceDeviceId: socket.data.auth?.deviceId,

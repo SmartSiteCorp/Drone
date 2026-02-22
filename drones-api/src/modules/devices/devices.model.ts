@@ -1,4 +1,4 @@
-export type DeviceType = "relay" | "dashboard" | "admin";
+export type DeviceType = "relay" | "drone" | "dashboard" | "admin";
 
 export type Device = {
   id: string;

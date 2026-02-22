@@ -7,6 +7,7 @@ import { log } from "node:console";
 type DbRow = {
   api_key_id: string;
   device_id: string;
+  device_type: string;
   key_hash: string;
   scopes: string[];
   revoked_at: string | null;
@@ -28,7 +29,9 @@ function getApiKeyFromSocket(socket: Socket): string | null {
 export function useApiKeyAuth(io: Server) {
   io.use(async (socket, next) => {
     try {
-      logger.info("[sio] Tentative de connexion depuis l'id:", { socketId: socket.id });
+      logger.info("[sio] Tentative de connexion depuis l'id:", {
+        socketId: socket.id,
+      });
       console.log("[sio] Tentative de connexion depuis l'id:", socket.id);
 
       const apiKey = getApiKeyFromSocket(socket);
@@ -42,48 +45,72 @@ export function useApiKeyAuth(io: Server) {
 
       const r = await pool.query<DbRow>(
         `SELECT
-           ak.id as api_key_id,
-           ak.key_hash,
-           ak.scopes,
-           ak.revoked_at,
-           ak.expires_at,
-           d.id as device_id
-         FROM api_keys ak
-         JOIN devices d ON d.id = ak.device_id
-         WHERE ak.key_prefix = $1
-         ORDER BY ak.created_at DESC
-         LIMIT 5`,
+     ak.id as api_key_id,
+     ak.key_hash,
+     ak.scopes,
+     ak.revoked_at,
+     ak.expires_at,
+     d.id as device_id,
+     d.type as device_type
+   FROM api_keys ak
+   JOIN devices d ON d.id = ak.device_id
+   WHERE ak.key_prefix = $1
+   ORDER BY ak.created_at DESC
+   LIMIT 5`,
         [keyPrefix],
       );
 
-      if (r.rowCount === 0) { 
-        console.warn("[sio] apiKey non trouvée pour le préfixe:", keyPrefix + " (socket id: " + socket.id + ")");
+      if (r.rowCount === 0) {
+        console.warn(
+          "[sio] apiKey non trouvée pour le préfixe:",
+          keyPrefix + " (socket id: " + socket.id + ")",
+        );
         return next(new Error("Unauthorized"));
       }
 
       const now = new Date();
 
       for (const row of r.rows) {
-        if (row.revoked_at) { 
-          logger.warn("[sio] apiKey révoquée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
-          console.warn("[sio] apiKey révoquée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
-          continue;}
+        if (row.revoked_at) {
+          logger.warn(
+            "[sio] apiKey révoquée (id:",
+            row.api_key_id + ", socket id: " + socket.id + ")",
+          );
+          console.warn(
+            "[sio] apiKey révoquée (id:",
+            row.api_key_id + ", socket id: " + socket.id + ")",
+          );
+          continue;
+        }
         if (row.expires_at && new Date(row.expires_at) <= now) {
-          logger.warn("[sio] apiKey expirée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
-          console.warn("[sio] apiKey expirée (id:", row.api_key_id + ", socket id: " + socket.id + ")");
+          logger.warn(
+            "[sio] apiKey expirée (id:",
+            row.api_key_id + ", socket id: " + socket.id + ")",
+          );
+          console.warn(
+            "[sio] apiKey expirée (id:",
+            row.api_key_id + ", socket id: " + socket.id + ")",
+          );
           continue;
         }
 
         const ok = verifyApiKey(apiKey, row.key_hash);
         if (!ok) {
-          logger.warn("[sio] apiKey invalide (id:", row.api_key_id + ", socket id: " + socket.id + ")");
-          console.warn("[sio] apiKey invalide (id:", row.api_key_id + ", socket id: " + socket.id + ")");
+          logger.warn(
+            "[sio] apiKey invalide (id:",
+            row.api_key_id + ", socket id: " + socket.id + ")",
+          );
+          console.warn(
+            "[sio] apiKey invalide (id:",
+            row.api_key_id + ", socket id: " + socket.id + ")",
+          );
           continue;
         }
 
         // succès: on met le contexte auth dans socket.data
         socket.data.auth = {
           deviceId: row.device_id,
+          deviceType: row.device_type,
           apiKeyId: row.api_key_id,
           scopes: row.scopes ?? [],
         };
@@ -97,10 +124,15 @@ export function useApiKeyAuth(io: Server) {
 
         return next();
       }
-      logger.warn("[sio] Aucune apiKey valide trouvée pour la socket id: " + socket.id);
+      logger.warn(
+        "[sio] Aucune apiKey valide trouvée pour la socket id: " + socket.id,
+      );
       return next(new Error("Unauthorized"));
     } catch (e) {
-      logger.error("Erreur interne dans le middleware Socket.IO d'authentification", e);
+      logger.error(
+        "Erreur interne dans le middleware Socket.IO d'authentification",
+        e,
+      );
       return next(e as Error);
     }
   });

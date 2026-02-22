@@ -13,7 +13,7 @@ export const devicesRoutes = Router();
 devicesRoutes.post("/", (req, res, next) => {
   createDeviceHandler(req, res).catch(next);
 });
-
+// obtenir tous les devices (avec pagination optionnelle via query params limit & offset)
 devicesRoutes.get("/", (req, res, next) => {
   listDevicesHandler(req, res).catch(next);
 });

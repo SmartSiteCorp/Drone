@@ -8,5 +8,7 @@ export function defaultScopesForDevice(type: DeviceType): string[] {
       return ["telemetry:read", "commands:write"];
     case "admin":
       return ["devices:manage", "keys:manage"];
+    case "drone":
+      return [];
   }
 }
