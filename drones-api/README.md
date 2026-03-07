@@ -1,150 +1,89 @@
 # DroneControl API
 
-API backend pour la gestion et le contrôle de drones en temps réel.  
-Elle fournit une **API REST** pour la gestion des appareils et une **connexion WebSocket (Socket.IO)** pour la télémétrie et les commandes temps réel.
+Backend Node.js/TypeScript pour le pilotage de drones en temps reel.
+Le projet expose :
 
----
+- une API REST pour gerer les devices et les liens relay <-> drone,
+- une couche Socket.IO pour la telemetrie et les commandes.
 
-## Stack technique
+## Stack
 
-- **Runtime** : Node.js + TypeScript
-- **Framework HTTP** : Express 5
-- **WebSocket** : Socket.IO 4
-- **Base de données** : PostgreSQL 16
-- **Validation** : Zod
-- **Sécurité** : Helmet, CORS, authentification par API Key
+- Node.js + TypeScript
+- Express 5
+- Socket.IO 4
+- PostgreSQL 16
+- Zod (validation)
 
----
-
-## Prérequis
+## Prerequis
 
 - Node.js 18+
-- Docker & Docker Compose (pour PostgreSQL)
-
----
+- Docker + Docker Compose
 
 ## Installation
 
 ```bash
-# Cloner le repo
 cd drones-api
-
-# Installer les dépendances
 npm install
+```
 
-# Copier et configurer les variables d'environnement
-cp .env.example .env
-````
-
----
-
-## Configuration
-
-Créer un fichier `.env` à la racine :
+Creer un fichier `.env` a la racine :
 
 ```env
 PORT=7281
-DATABASE_URL="postgresql://drones:drones_password@localhost:5432/drones_api"
-MASTER_KEY="your-secure-master-key"
+DATABASE_URL=postgresql://drones:drones_password@localhost:5432/drones_api
+MASTER_KEY=change-me
 ```
 
-| Variable       | Description                      | Défaut |
-| -------------- | -------------------------------- | ------ |
-| `PORT`         | Port du serveur HTTP             | `7281` |
-| `DATABASE_URL` | URL de connexion PostgreSQL      | —      |
-| `MASTER_KEY`   | Clé maître pour l’administration | —      |
+## Demarrage rapide
 
----
-
-## Démarrage
-
-### 1. Lancer la base de données
+1. Lancer PostgreSQL
 
 ```bash
 docker-compose up -d
 ```
 
-### 2. Initialiser le schéma
+2. Lancer l'API
 
 ```bash
-docker exec -i drones-api-db psql -U drones -d drones_api < database/init.sql
-```
-
-### 3. Lancer le serveur
-
-```bash
-# Mode développement (hot reload)
 npm run dev
-
-# Mode production
-npm run build
-npm start
 ```
 
-Serveur accessible sur :
+API disponible sur `http://localhost:7281`.
 
-```
-http://localhost:7281
-```
+## Structure principale
 
----
-
-## Architecture
-
-```
+```text
 src/
-├── app.ts              # Configuration Express
-├── main.ts             # Point d’entrée
-├── db/
-│   └── pool.ts         # Pool PostgreSQL
-├── http/
-│   ├── router.ts
-│   └── middlewares/
-│       └── errorHandler.ts
-├── modules/
-│   ├── auth/
-│   │   ├── apiKeys.crypto.ts
-│   │   └── scopes.ts
-│   └── devices/
-│       ├── devices.controller.ts
-│       ├── devices.mapper.ts
-│       ├── devices.model.ts
-│       ├── devices.routes.ts
-│       ├── devices.schemas.ts
-│       └── devices.service.ts
-└── realtime/
-    ├── authApiKey.ts
-    ├── index.ts
-    ├── io.ts
-    ├── rooms.ts
-    ├── scopes.ts
-    └── handlers/
-        ├── commands.ts
-        ├── connection.ts
-        └── telemetry.ts
+  app.ts
+  main.ts
+  db/pool.ts
+  http/router.ts
+  modules/
+    auth/
+    devices/
+    relay-links/
+  realtime/
+    authApiKey.ts
+    rooms.ts
+    handlers/
 ```
-
----
 
 ## API REST
 
-### Health check
+### Base
 
-```http
-GET /health
-```
-
-Réponse :
-
-```json
-{ "ok": true }
-```
-
----
+- `GET /` : message de bienvenue
+- `GET /health` : statut API (`{ ok: true }`)
 
 ### Devices
 
-#### Créer un appareil
+- `POST /api/devices`
+- `GET /api/devices?limit=100&offset=0`
+- `GET /api/devices/relay`
+- `GET /api/devices/dashboard`
+- `GET /api/devices/:id`
+
+Exemple creation :
 
 ```http
 POST /api/devices
@@ -152,111 +91,105 @@ Content-Type: application/json
 
 {
   "name": "Relay-01",
-  "type": "relay",
-  "scopes": ["telemetry:write", "commands:read"]
+  "type": "relay"
 }
 ```
 
-Types disponibles :
+Types utilises dans le code applicatif :
 
-* `relay`
-* `dashboard`
-* `admin`
+- `relay`
+- `drone`
+- `dashboard`
+- `admin`
 
-⚠️ La valeur de l’API Key est retournée **une seule fois**.
+La cle API est retournee une seule fois dans la reponse de creation.
 
----
+### Liens relay <-> drone
 
-#### Lister les appareils
+- `POST /api/relay-links`
 
-```http
-GET /api/devices?limit=100&offset=0
+Payload :
+
+```json
+{
+  "relayDeviceId": "uuid",
+  "droneDeviceId": "uuid"
+}
 ```
-
-#### Récupérer un appareil
-
-```http
-GET /api/devices/:id
-```
-
----
 
 ## WebSocket (Socket.IO)
 
-### Connexion
+Connexion avec API key via `auth.apiKey` :
 
 ```js
 import { io } from "socket.io-client";
 
 const socket = io("http://localhost:7281", {
-  auth: {
-    apiKey: "votre-api-key"
-  }
+  auth: { apiKey: "votre_api_key" },
 });
 
 socket.on("connected", (data) => {
-  console.log("Connecté :", data);
-});
-
-socket.on("app:error", (err) => {
-  console.error("Erreur :", err);
+  console.log(data);
 });
 ```
 
----
+### Telemetrie
 
-## Télémétrie
+- `telemetry:push` (client -> serveur)
+- `telemetry:push:ack` (serveur -> client)
+- `telemetry:subscribe` / `telemetry:subscribed`
+- `telemetry:unsubscribe` / `telemetry:unsubscribed`
+- `telemetry:update`
+- `app:error`
 
-### Événements
-
-| Événement             | Direction        | Description           |
-| --------------------- | ---------------- | --------------------- |
-| `telemetry:push`      | Client → Serveur | Envoi de télémétrie   |
-| `telemetry:push:ack`  | Serveur → Client | Accusé de réception   |
-| `telemetry:subscribe` | Client → Serveur | Abonnement à un drone |
-| `telemetry:update`    | Serveur → Client | Diffusion temps réel  |
-
-### Payload `telemetry:push`
+Payload minimal `telemetry:push` :
 
 ```ts
 {
   droneId: string;
   ts: number;
-  lat?: number;
-  lon?: number;
-  alt?: number;
-  groundspeed?: number;
-  mode?: string;
 }
 ```
 
----
+### Commandes
 
-## Commandes
+Evenement d'envoi : `commande:send`
 
-### Payload `command:send`
+Payload accepte :
+
+```ts
+"RTL"
+```
+
+ou
 
 ```ts
 {
-  relayId: string;
-  droneId?: string;
-  command: "RTL" | "LOITER" | "TAKEOFF" | "LAND";
-  params?: Record<string, unknown>;
+  label: "Démarrer" | "Mission Auto" | "Loiter" | "RTL" | "Land" | "Stop";
+  deviceID: string;
 }
 ```
 
----
+Retour :
 
-## Scopes & permissions
+- ACK callback (`{ ok: true|false, ... }`)
+- `commande:status`
+- `relay:command` (diffuse vers la room du relay cible)
 
-| Scope             | Description            |
-| ----------------- | ---------------------- |
-| `telemetry:write` | Envoyer la télémétrie  |
-| `telemetry:read`  | Lire la télémétrie     |
-| `commands:write`  | Envoyer des commandes  |
-| `commands:read`   | Recevoir des commandes |
-| `devices:manage`  | Gérer les devices      |
-| `keys:manage`     | Gérer les clés API     |
+## Scopes
+
+- `telemetry:write`
+- `telemetry:read`
+- `commands:write`
+- `commands:read`
+- `devices:manage`
+- `keys:manage`
+
+## Point d'attention schema SQL
+
+Le code autorise les types `dashboard` et `admin`, mais `database/init.sql` contient encore une contrainte `devices_type_chk` avec `relay`, `drone`, `client`, `server`.
+
+Si vous creez un `dashboard` ou un `admin`, adaptez la contrainte SQL pour aligner la base sur le code.
 
 ### Scopes par défaut
 

@@ -1,118 +1,79 @@
-# 🧪 Test Relay – Vérification de l’autorisation Drone ↔ Relay
+# Test Relay - Verification autorisation Drone <-> Relay
 
-Ce script permet de tester :
+Ce test valide :
 
-* 🔐 L’authentification via API key
-* 📡 L’envoi de télémétrie (`telemetry:push`)
-* 🔗 La vérification d’association relay → drone
-* 🚫 Le blocage des drones non autorisés
+- l'authentification Socket.IO via API key,
+- l'envoi de `telemetry:push`,
+- l'autorisation relay -> drone,
+- le rejet des drones non autorises.
 
----
+## Fichier concerne
 
-## 📁 Fichier
+- `test/test-relais.js`
 
-Créer un fichier :
+## Prerequis
 
+Depuis `drones-api` :
+
+```bash
+npm install
 ```
-test/test-relais.js
-```
 
----
-
-## 📦 Prérequis
-
-Installer le client Socket.IO :
+Si `socket.io-client` n'est pas installe, ajouter :
 
 ```bash
 npm install socket.io-client
 ```
 
----
+## Preparation
 
-## 🧠 Script de test
+1. Creer un device de type `relay` et recuperer son API key.
+2. Creer un device de type `drone`.
+3. Creer le lien actif :
 
-```js
-import { io } from "socket.io-client";
+```http
+POST /api/relay-links
+Content-Type: application/json
 
-const API_KEY = "COLLE_ICI_LA_VRAIE_API_KEY_DU_RELAY";
-
-const socket = io("http://localhost:7281", {
-  auth: {
-    apiKey: API_KEY,
-  },
-});
-
-socket.on("connect", () => {
-  console.log("Connected as relay");
-
-  // 🟢 TEST 1 — drone autorisé
-  socket.emit("telemetry:push", {
-    droneId: "UUID_DRONE_AUTORISÉ",
-    ts: Date.now(),
-    lat: 48.85,
-    lon: 2.35,
-    alt: 120,
-  });
-
-  // 🔴 TEST 2 — drone non autorisé
-  setTimeout(() => {
-    socket.emit("telemetry:push", {
-      droneId: "UUID_FAUX_DRONE",
-      ts: Date.now(),
-      lat: 0,
-      lon: 0,
-      alt: 0,
-    });
-  }, 2000);
-});
-
-socket.on("telemetry:push:ack", (data) => {
-  console.log("ACK:", data);
-});
-
-socket.on("app:error", (err) => {
-  console.log("ERROR:", err);
-});
-
-socket.on("connected", (data) => {
-  console.log("Server connected event:", data);
-});
+{
+  "relayDeviceId": "<uuid-relay>",
+  "droneDeviceId": "<uuid-drone-autorise>"
+}
 ```
 
----
+4. Dans `test/test-relais.js`, remplacer :
 
-## ▶️ Lancer le test
+- `API_KEY` par la cle du relay,
+- le `droneId` du test vert par le drone autorise,
+- le `droneId` du test rouge par un UUID non autorise.
 
-Depuis le dossier `drones-api` :
+## Lancement
 
 ```bash
 node ./test/test-relais.js
 ```
 
----
+## Resultats attendus
 
-## 🎯 Résultats attendus
+Drone autorise :
 
-### ✅ Drone autorisé
-
-```
+```text
 ACK: { ok: true, droneId: "...", ts: ... }
 ```
 
-### ❌ Drone non autorisé
+Drone non autorise :
 
-```
+```text
 ERROR: {
   event: 'telemetry:push',
-  message: 'Drone non autorisé pour ce relay'
+  message: 'Drone non autorisé pour ce relay',
+  droneId: '...'
 }
 ```
 
----
+## Evenement de connexion utile
 
-## 🔍 Vérification côté serveur
-
-Au moment de la connexion, le serveur renvoie :
+Au `connected`, le serveur renvoie notamment :
 
 ```json
 {
@@ -124,52 +85,16 @@ Au moment de la connexion, le serveur renvoie :
 }
 ```
 
-Le `droneId` utilisé dans le test doit être présent dans `allowedDroneIds`.
+Le `droneId` envoye dans le test autorise doit etre present dans `allowedDroneIds`.
 
----
+## Note securite
 
-## ⚠️ Warning Node (facultatif)
+Le fichier `test/test-relais.js` contient actuellement une API key en dur. Ne pas committer de vraie cle en production.
 
-Si Node affiche :
+## Warning Node possible
 
-```
-MODULE_TYPELESS_PACKAGE_JSON warning
-```
+Si un warning `MODULE_TYPELESS_PACKAGE_JSON` apparait, vous pouvez :
 
-Deux options :
-
-### Option 1 — Ignorer (aucun impact)
-
-### Option 2 — Ajouter dans package.json :
-
-```json
-{
-  "type": "module"
-}
-```
-
-### Option 3 — Passer en CommonJS
-
-Remplacer :
-
-```js
-import { io } from "socket.io-client";
-```
-
-par :
-
-```js
-const { io } = require("socket.io-client");
-```
-
----
-
-## 🛡 Ce que ce test valide
-
-Ce script confirme que ton backend applique correctement :
-
-* API key authentication
-* Scope checking
-* Association relay ↔ drone en base
-* Contrôle d’autorisation en temps réel
-* Isolation par rooms Socket.IO
+- le laisser (le script peut quand meme fonctionner),
+- ajouter `"type": "module"` dans `package.json`,
+- ou convertir le script en CommonJS (`require`).
