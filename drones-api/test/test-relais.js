@@ -43,3 +43,25 @@ socket.on("app:error", (err) => {
 socket.on("connected", (data) => {
   console.log("Server connected event:", data);
 });
+
+// 🎮 Écoute des commandes du serveur
+socket.on("relay:command", (data) => {
+  console.log("🎮 Commande reçue du serveur:", data);
+  
+  const { commandId, label, droneId, requestedBy } = data;
+  
+  // Simulation d'exécution de la commande sur le drone
+  console.log(`🚁 Exécution de "${label}" sur le drone ${droneId}...`);
+  
+  setTimeout(() => {
+    console.log(`✅ Commande ${label} exécutée pour drone ${droneId}`);
+    
+    // Envoyer un ACK au serveur (optionnel)
+    socket.emit("relay:command:ack", {
+      commandId,
+      droneId,
+      status: "executed",
+      ts: Date.now(),
+    });
+  }, 500);
+});

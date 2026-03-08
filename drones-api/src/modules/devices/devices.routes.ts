@@ -4,7 +4,9 @@ import {
   getDeviceByIdHandler,
   listDevicesHandler,
   getAllRelays,
-  getAllDashboards,
+  // getAllDashboards,
+  getAllDrones,
+  deleteDeviceHandler,
 } from "./devices.controller";
 
 export const devicesRoutes = Router();
@@ -23,11 +25,19 @@ devicesRoutes.get("/relay", (req, res, next) => {
   getAllRelays(req, res).catch(next);
 });
 
-// obtenir tous les dashboards
-devicesRoutes.get("/dashboard", (req, res, next) => {
-  getAllDashboards(req, res).catch(next);
+devicesRoutes.get("/drone", (req, res, next) => {
+  getAllDrones(req, res).catch(next);
 });
+
+// // obtenir tous les dashboards
+// devicesRoutes.get("/dashboard", (req, res, next) => {
+//   getAllDashboards(req, res).catch(next);
+// });
 
 devicesRoutes.get("/:id", (req, res, next) => {
   getDeviceByIdHandler(req, res).catch(next);
+});
+
+devicesRoutes.delete("/:id", (req, res, next) => {
+  deleteDeviceHandler(req, res).catch(next);
 });

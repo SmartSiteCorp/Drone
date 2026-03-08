@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS devices (
   name text NOT NULL,
   type text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT devices_type_chk CHECK (type IN ('relay', 'drone', 'client', 'server'))
+  CONSTRAINT devices_type_chk CHECK (type IN ('relay', 'drone', 'client','dashboard', 'server'))
 );
 
 CREATE INDEX IF NOT EXISTS devices_type_idx ON devices(type);

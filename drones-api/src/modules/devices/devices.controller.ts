@@ -7,6 +7,8 @@ import {
   listDevices,
   listRelays,
   listDashboards,
+  listDrones,
+  deleteDevice,
 } from "./devices.service";
 
 const DeviceIdParamSchema = z.object({
@@ -58,4 +60,25 @@ export async function getAllRelays(req: Request, res: Response) {
 export async function getAllDashboards(req: Request, res: Response) {
   const dashboards = await listDashboards();
   res.json({ dashboards });
+}
+
+export async function getAllDrones(req: Request, res: Response) {
+  const drones = await listDrones();
+  res.json({ drones });
+}
+
+export async function deleteDeviceHandler(req: Request, res: Response) {
+  const parsed = DeviceIdParamSchema.safeParse(req.params);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid device id (expected uuid)" });
+  }
+
+  const { id } = parsed.data;
+
+  const deleted = await deleteDevice(id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Device not found" });
+  }
+
+  res.status(200).json({ message: "Device deleted successfully" });
 }

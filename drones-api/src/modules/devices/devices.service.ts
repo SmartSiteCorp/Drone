@@ -8,6 +8,9 @@ import {
 import { toDevice, type DeviceRow } from "./devices.mapper";
 import { defaultScopesForDevice } from "../auth/scopes";
 import { Device } from "./devices.model";
+import { getIO } from "../../realtime/io";
+import { roomDevice } from "../../realtime/rooms";
+import { logger } from "../../core/logger";
 
 export async function createDevice(input: CreateDeviceInput) {
   const apiKey = generateApiKey();
@@ -124,4 +127,62 @@ export async function listDashboards(): Promise<Device[]> {
   );
 
   return result.rows.map(toDevice);
+}
+
+export async function listDrones(): Promise<Device[]> {
+  const result = await pool.query<DeviceRow>(
+    `SELECT id, name, type, created_at
+     FROM devices
+     WHERE type = 'drone'
+     ORDER BY created_at DESC`,
+  );
+
+  return result.rows.map(toDevice);
+}
+
+export async function deleteDevice(id: string): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Supprimer le device (les api_keys seront supprimées automatiquement via ON DELETE CASCADE)
+    const result = await client.query(
+      `DELETE FROM devices WHERE id = $1`,
+      [id],
+    );
+
+    await client.query("COMMIT");
+
+    const deleted = result.rowCount !== null && result.rowCount > 0;
+
+    // Si le device a été supprimé, déconnecter tous ses sockets actifs
+    if (deleted) {
+      try {
+        const io = getIO();
+        const socketsInRoom = await io.in(roomDevice(id)).fetchSockets();
+        
+        logger.info("Déconnexion des sockets actifs pour le device supprimé", {
+          deviceId: id,
+          socketsCount: socketsInRoom.length,
+        });
+
+        for (const socket of socketsInRoom) {
+          socket.disconnect(true); // true = fermeture forcée sans délai
+        }
+      } catch (ioError) {
+        // Si Socket.IO n'est pas initialisé, on continue quand même
+        logger.warn("Impossible de déconnecter les sockets (IO non initialisé)", {
+          deviceId: id,
+          error: ioError,
+        });
+      }
+    }
+
+    return deleted;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

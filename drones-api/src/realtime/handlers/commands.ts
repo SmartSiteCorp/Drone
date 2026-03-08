@@ -1,22 +1,22 @@
 // server/socket/commands.ts
 import type { Server, Socket } from "socket.io";
 import { roomDevice } from "../rooms";
+import { getActiveRelayForDrone } from "../../modules/relay-links/relay-links.service";
 
-type CommandLabel = "Démarrer" | "Mission Auto" | "Loiter" | "RTL" | "Land" | "Stop";
+type CommandLabel = "ARM" | "DISARM" | "Mission Auto" | "Loiter" | "RTL" | "Land" | "Stop";
 
-type CommandRequest =
-  | CommandLabel
-  | {
-      label: CommandLabel;
-      deviceID?: string; // relay ciblé
-    };
+type CommandRequest = {
+  label: CommandLabel;
+  droneId: string; // ✅ Le dashboard envoie le droneId
+};
 
 type CommandAck =
   | { ok: true; commandId: string; acceptedAt: number }
   | { ok: false; error: string };
 
 const ALLOWED: Record<CommandLabel, true> = {
-  "Démarrer": true,
+  "ARM": true,
+  "DISARM": true,
   "Mission Auto": true,
   "Loiter": true,
   "RTL": true,
@@ -60,20 +60,29 @@ export function registerCommandHandlers(io: Server) {
           return;
         }
 
-        // payload peut être "RTL" ou {label, droneId}
-        const label = typeof payload === "string" ? payload : (payload as any)?.label;
+        // Validation du payload
+        if (typeof payload !== "object" || !payload) {
+          ack?.({ ok: false, error: "Payload invalide" });
+          return;
+        }
+
+        const { label, droneId } = payload as any;
+
         if (!isCommandLabel(label)) {
           ack?.({ ok: false, error: "Commande invalide" });
           return;
         }
 
-        // deviceID (relay ciblé)
-        const deviceID =
-          (typeof payload === "object" && payload ? (payload as any).deviceID : undefined) ??
-          socket.data.auth?.deviceID; // fallback pratique si mono-drone
+        if (!droneId) {
+          ack?.({ ok: false, error: "droneId manquant" });
+          return;
+        }
 
-        if (!deviceID) {
-          ack?.({ ok: false, error: "deviceID manquant" });
+        // ✅ Résolution du relay pour ce drone
+        const relayId = await getActiveRelayForDrone(droneId);
+        
+        if (!relayId) {
+          ack?.({ ok: false, error: "Aucun relay actif pour ce drone" });
           return;
         }
 
@@ -82,11 +91,12 @@ export function registerCommandHandlers(io: Server) {
         // ACK immédiat
         ack?.({ ok: true, commandId, acceptedAt: Date.now() });
 
-        // ✅ Envoi vers la room du deviceId (le relay du drone est dedans)
+        // ✅ Envoi vers la room du relay
         await dispatchToDroneRelay(io, {
           commandId,
           label,
-          deviceID: deviceID,
+          droneId,
+          relayId,
           requestedBy: socket.id,
         });
 
@@ -94,10 +104,12 @@ export function registerCommandHandlers(io: Server) {
         socket.emit("commande:status", {
           commandId,
           status: "sent_to_relay",
-          deviceID: deviceID,
+          droneId,
+          relayId,
           ts: Date.now(),
         });
-      } catch {
+      } catch (err) {
+        console.error("Erreur dans commande:send:", err);
         ack?.({ ok: false, error: "Erreur serveur" });
       }
     });
@@ -106,8 +118,19 @@ export function registerCommandHandlers(io: Server) {
 
 async function dispatchToDroneRelay(
   io: Server,
-  data: { commandId: string; label: CommandLabel; deviceID: string; requestedBy: string }
+  data: { 
+    commandId: string; 
+    label: CommandLabel; 
+    droneId: string;    // ✅ Le drone cible
+    relayId: string;    // ✅ Le relay qui va transmettre
+    requestedBy: string;
+  }
 ) {
-  // ✅ même convention partout : roomDevice(deviceID)
-  io.to(roomDevice(data.deviceID)).emit("relay:command", data);
+  // ✅ Envoi vers la room du relay
+  io.to(roomDevice(data.relayId)).emit("relay:command", {
+    commandId: data.commandId,
+    label: data.label,
+    droneId: data.droneId,  // Le relay saura quel drone commander
+    requestedBy: data.requestedBy,
+  });
 }
