@@ -45,9 +45,8 @@ function hasScope(socket: Socket, scope: string): boolean {
   return scopes.includes(scope);
 }
 
-export function registerCommandHandlers(io: Server) {
-  io.on("connection", (socket) => {
-    socket.on("commande:send", async (payload: unknown, ack?: (res: CommandAck) => void) => {
+export function registerCommandHandlers(io: Server, socket: Socket) {
+  const handleCommand = async (payload: unknown, ack?: (res: CommandAck) => void) => {
       try {
         if (!rateLimit(socket)) {
           ack?.({ ok: false, error: "Rate limit" });
@@ -112,7 +111,13 @@ export function registerCommandHandlers(io: Server) {
         console.error("Erreur dans commande:send:", err);
         ack?.({ ok: false, error: "Erreur serveur" });
       }
-    });
+  };
+
+  socket.on("commande:send", handleCommand);
+
+  socket.once("disconnect", () => {
+    socket.off("commande:send", handleCommand);
+    lastCmdAt.delete(socket.id);
   });
 }
 
