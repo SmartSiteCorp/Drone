@@ -3,11 +3,22 @@ import type { Server, Socket } from "socket.io";
 import { roomDevice } from "../rooms";
 import { getActiveRelayForDrone } from "../../modules/relay-links/relay-links.service";
 
-type CommandLabel = "ARM" | "DISARM" | "Mission Auto" | "Loiter" | "RTL" | "Land" | "Stop";
+type CommandLabel =
+  | "ARM"
+  | "DISARM"
+  | "Mission Auto"
+  | "Loiter"
+  | "RTL"
+  | "Land"
+  | "Stop"
+  | "MOTOR_TEST";
 
 type CommandRequest = {
   label: CommandLabel;
   droneId: string; // ✅ Le dashboard envoie le droneId
+  percent?: number;
+  durationSeconds?: number;
+  motor?: number | "ALL";
 };
 
 type CommandAck =
@@ -15,13 +26,14 @@ type CommandAck =
   | { ok: false; error: string };
 
 const ALLOWED: Record<CommandLabel, true> = {
-  "ARM": true,
-  "DISARM": true,
+  ARM: true,
+  DISARM: true,
   "Mission Auto": true,
-  "Loiter": true,
-  "RTL": true,
-  "Land": true,
-  "Stop": true,
+  Loiter: true,
+  RTL: true,
+  Land: true,
+  Stop: true,
+  MOTOR_TEST: true,
 };
 
 function isCommandLabel(x: unknown): x is CommandLabel {
@@ -46,71 +58,115 @@ function hasScope(socket: Socket, scope: string): boolean {
 }
 
 export function registerCommandHandlers(io: Server, socket: Socket) {
-  const handleCommand = async (payload: unknown, ack?: (res: CommandAck) => void) => {
-      try {
-        if (!rateLimit(socket)) {
-          ack?.({ ok: false, error: "Rate limit" });
-          return;
-        }
-
-        // ✅ (optionnel mais recommandé) seuls les dashboards autorisés peuvent envoyer
-        if (!hasScope(socket, "commands:write")) {
-          ack?.({ ok: false, error: "Permission refusée (commands:write requis)" });
-          return;
-        }
-
-        // Validation du payload
-        if (typeof payload !== "object" || !payload) {
-          ack?.({ ok: false, error: "Payload invalide" });
-          return;
-        }
-
-        const { label, droneId } = payload as any;
-
-        if (!isCommandLabel(label)) {
-          ack?.({ ok: false, error: "Commande invalide" });
-          return;
-        }
-
-        if (!droneId) {
-          ack?.({ ok: false, error: "droneId manquant" });
-          return;
-        }
-
-        // ✅ Résolution du relay pour ce drone
-        const relayId = await getActiveRelayForDrone(droneId);
-        
-        if (!relayId) {
-          ack?.({ ok: false, error: "Aucun relay actif pour ce drone" });
-          return;
-        }
-
-        const commandId = `cmd_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-        // ACK immédiat
-        ack?.({ ok: true, commandId, acceptedAt: Date.now() });
-
-        // ✅ Envoi vers la room du relay
-        await dispatchToDroneRelay(io, {
-          commandId,
-          label,
-          droneId,
-          relayId,
-          requestedBy: socket.id,
-        });
-
-        // statut au demandeur
-        socket.emit("commande:status", {
-          commandId,
-          status: "sent_to_relay",
-          droneId,
-          relayId,
-          ts: Date.now(),
-        });
-      } catch (err) {
-        console.error("Erreur dans commande:send:", err);
-        ack?.({ ok: false, error: "Erreur serveur" });
+  const handleCommand = async (
+    payload: unknown,
+    ack?: (res: CommandAck) => void,
+  ) => {
+    try {
+      if (!rateLimit(socket)) {
+        ack?.({ ok: false, error: "Rate limit" });
+        return;
       }
+
+      // ✅ (optionnel mais recommandé) seuls les dashboards autorisés peuvent envoyer
+      if (!hasScope(socket, "commands:write")) {
+        ack?.({
+          ok: false,
+          error: "Permission refusée (commands:write requis)",
+        });
+        return;
+      }
+
+      // Validation du payload
+      if (typeof payload !== "object" || !payload) {
+        ack?.({ ok: false, error: "Payload invalide" });
+        return;
+      }
+
+      const { label, droneId, percent, durationSeconds, motor } =
+        payload as CommandRequest;
+
+      if (!isCommandLabel(label)) {
+        ack?.({ ok: false, error: "Commande invalide" });
+        return;
+      }
+
+      if (!droneId) {
+        ack?.({ ok: false, error: "droneId manquant" });
+        return;
+      }
+
+      if (
+        label === "MOTOR_TEST" &&
+        (typeof percent !== "number" ||
+          !Number.isFinite(percent) ||
+          percent < 0 ||
+          percent > 100)
+      ) {
+        ack?.({ ok: false, error: "percent doit être compris entre 0 et 100" });
+        return;
+      }
+
+      if (
+        label === "MOTOR_TEST" &&
+        (typeof durationSeconds !== "number" ||
+          !Number.isFinite(durationSeconds) ||
+          durationSeconds <= 0)
+      ) {
+        ack?.({ ok: false, error: "durationSeconds doit être supérieur à 0" });
+        return;
+      }
+
+      if (
+        label === "MOTOR_TEST" &&
+        motor !== undefined &&
+        motor !== "ALL" &&
+        (!Number.isInteger(motor) || motor < 1 || motor > 4)
+      ) {
+        ack?.({
+          ok: false,
+          error: "motor doit être ALL ou un numéro entre 1 et 4",
+        });
+        return;
+      }
+
+      // ✅ Résolution du relay pour ce drone
+      const relayId = await getActiveRelayForDrone(droneId);
+
+      if (!relayId) {
+        ack?.({ ok: false, error: "Aucun relay actif pour ce drone" });
+        return;
+      }
+
+      const commandId = `cmd_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+      // ACK immédiat
+      ack?.({ ok: true, commandId, acceptedAt: Date.now() });
+
+      // ✅ Envoi vers la room du relay
+      await dispatchToDroneRelay(io, {
+        commandId,
+        label,
+        droneId,
+        relayId,
+        requestedBy: socket.id,
+        percent: label === "MOTOR_TEST" ? percent : undefined,
+        durationSeconds: label === "MOTOR_TEST" ? durationSeconds : undefined,
+        motor: label === "MOTOR_TEST" ? (motor ?? "ALL") : undefined,
+      });
+
+      // statut au demandeur
+      socket.emit("commande:status", {
+        commandId,
+        status: "sent_to_relay",
+        droneId,
+        relayId,
+        ts: Date.now(),
+      });
+    } catch (err) {
+      console.error("Erreur dans commande:send:", err);
+      ack?.({ ok: false, error: "Erreur serveur" });
+    }
   };
 
   socket.on("commande:send", handleCommand);
@@ -123,19 +179,29 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
 
 async function dispatchToDroneRelay(
   io: Server,
-  data: { 
-    commandId: string; 
-    label: CommandLabel; 
-    droneId: string;    // ✅ Le drone cible
-    relayId: string;    // ✅ Le relay qui va transmettre
+  data: {
+    commandId: string;
+    label: CommandLabel;
+    droneId: string; // ✅ Le drone cible
+    relayId: string; // ✅ Le relay qui va transmettre
     requestedBy: string;
-  }
+    percent?: number;
+    durationSeconds?: number;
+    motor?: number | "ALL";
+  },
 ) {
   // ✅ Envoi vers la room du relay
   io.to(roomDevice(data.relayId)).emit("relay:command", {
     commandId: data.commandId,
     label: data.label,
-    droneId: data.droneId,  // Le relay saura quel drone commander
+    droneId: data.droneId, // Le relay saura quel drone commander
     requestedBy: data.requestedBy,
+    ...(data.label === "MOTOR_TEST"
+      ? {
+          percent: data.percent,
+          durationSeconds: data.durationSeconds,
+          motor: data.motor ?? "ALL",
+        }
+      : {}),
   });
 }
