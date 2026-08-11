@@ -14,7 +14,7 @@ type CommandLabel =
 
 type CommandRequest = {
   label: CommandLabel;
-  droneId: string; // ✅ Le dashboard envoie le droneId
+  droneId: string;
   percent?: number;
   durationSeconds?: number;
   motor?: number | "ALL";
@@ -39,7 +39,6 @@ function isCommandLabel(x: unknown): x is CommandLabel {
   return typeof x === "string" && (x as CommandLabel) in ALLOWED;
 }
 
-// Anti-spam simple (par socket)
 const lastCmdAt = new Map<string, number>();
 const MIN_INTERVAL_MS = 700;
 
@@ -67,7 +66,6 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      // ✅ (optionnel mais recommandé) seuls les dashboards autorisés peuvent envoyer
       if (!hasScope(socket, "commands:write")) {
         ack?.({
           ok: false,
@@ -76,7 +74,6 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      // Validation du payload
       if (typeof payload !== "object" || !payload) {
         ack?.({ ok: false, error: "Payload invalide" });
         return;
@@ -129,7 +126,6 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      // ✅ Résolution du relay pour ce drone
       const relayId = await getActiveRelayForDrone(droneId);
 
       if (!relayId) {
@@ -139,10 +135,8 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
 
       const commandId = `cmd_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-      // ACK immédiat
       ack?.({ ok: true, commandId, acceptedAt: Date.now() });
 
-      // ✅ Envoi vers la room du relay
       await dispatchToDroneRelay(io, {
         commandId,
         label,
@@ -154,7 +148,6 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
         motor: label === "MOTOR_TEST" ? (motor ?? "ALL") : undefined,
       });
 
-      // statut au demandeur
       socket.emit("commande:status", {
         commandId,
         status: "sent_to_relay",
@@ -181,19 +174,18 @@ async function dispatchToDroneRelay(
   data: {
     commandId: string;
     label: CommandLabel;
-    droneId: string; // ✅ Le drone cible
-    relayId: string; // ✅ Le relay qui va transmettre
+    droneId: string;
+    relayId: string;
     requestedBy: string;
     percent?: number;
     durationSeconds?: number;
     motor?: number | "ALL";
   },
 ) {
-  // ✅ Envoi vers la room du relay
   io.to(roomDevice(data.relayId)).emit("relay:command", {
     commandId: data.commandId,
     label: data.label,
-    droneId: data.droneId, // Le relay saura quel drone commander
+    droneId: data.droneId,
     requestedBy: data.requestedBy,
     ...(data.label === "MOTOR_TEST"
       ? {
