@@ -4,11 +4,11 @@ services:
     container_name: drones-api-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: drones_api
-      POSTGRES_USER: drones
-      POSTGRES_PASSWORD: drones_password
+      POSTGRES_DB: ${POSTGRES_DB:-drones_api}
+      POSTGRES_USER: ${POSTGRES_USER:-drones}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-drones_password}
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - drones_api_pgdata:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro

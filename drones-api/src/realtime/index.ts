@@ -11,6 +11,6 @@ export function registerSocketHandlers(io: Server) {
     });
 
     registerTelemetryHandlers(io, socket);
-    registerCommandHandlers(io);
+    registerCommandHandlers(io, socket);
   });
 }
