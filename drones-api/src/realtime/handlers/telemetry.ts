@@ -1,6 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import { roomDrone } from "../rooms";
 import { requireScope } from "../scopes";
+import { upsertLatestTelemetry } from "../../modules/telemetry/telemetry.store";
 
 type TelemetryPayload = {
   droneId: string;
@@ -42,6 +43,11 @@ export function registerTelemetryHandlers(io: Server, socket: Socket) {
         });
         return;
       }
+
+      upsertLatestTelemetry({
+        ...payload,
+        sourceDeviceId: socket.data.auth?.deviceId,
+      });
 
       io.to(roomDrone(payload.droneId)).emit("telemetry:update", {
         ...payload,

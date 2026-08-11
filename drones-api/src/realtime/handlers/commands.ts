@@ -1,4 +1,3 @@
-// server/socket/commands.ts
 import type { Server, Socket } from "socket.io";
 import { roomDevice } from "../rooms";
 import { getActiveRelayForDrone } from "../../modules/relay-links/relay-links.service";
