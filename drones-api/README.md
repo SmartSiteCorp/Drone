@@ -239,6 +239,11 @@ Si vous creez un `dashboard` ou un `admin`, adaptez la contrainte SQL pour align
 🚧 Projet en cours de développement
 Objectif : **backend temps réel robuste pour drones autonomes et systèmes embarqués**
 
+## Documentation operationnelle
+
+Guide detaille bridge/telemetry/commandes:
+- `README_TELEMETRY_BRIDGE_COMMANDS.md`
+
 # Auteur
 Projet développé par Aurélien
 Architecture orientée drones autonomes & systèmes temps réel
