@@ -19,7 +19,14 @@ export async function sendCommandToDrone(
   const acceptedAt = Date.now();
 
   const io = getIO();
-  io.to(roomDevice(relayId)).emit("relay:command", {
+  const relayRoom = roomDevice(relayId);
+  const relaySocketCount = io.sockets.adapter.rooms.get(relayRoom)?.size ?? 0;
+
+  if (relaySocketCount === 0) {
+    throw new Error("RELAY_OFFLINE");
+  }
+
+  io.to(relayRoom).emit("relay:command", {
     commandId,
     label: input.label,
     droneId: input.droneId,

@@ -5,6 +5,7 @@ export const COMMAND_LABELS = [
   "GUIDED",
   "STABILIZE",
   "AUTO",
+  "START",
   "Mission Auto",
   "Loiter",
   "RTL",
