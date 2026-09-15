@@ -8,7 +8,7 @@ export async function sendCommandHandler(req: Request, res: Response) {
     return res.status(400).json({
       error: "Invalid payload",
       expected: {
-        label: "ARM|ARM_FORCE|DISARM|GUIDED|STABILIZE|AUTO|Mission Auto|Loiter|RTL|Land|Stop",
+        label: "ARM|ARM_FORCE|DISARM|GUIDED|STABILIZE|AUTO|START|Mission Auto|Loiter|RTL|Land|Stop",
         droneId: "uuid",
       },
     });
@@ -28,6 +28,12 @@ export async function sendCommandHandler(req: Request, res: Response) {
       return res
         .status(409)
         .json({ error: "Aucun relay actif pour ce drone" });
+    }
+
+    if (message === "RELAY_OFFLINE") {
+      return res
+        .status(409)
+        .json({ error: "Relay offline: aucun socket relay connecté pour ce drone" });
     }
 
     throw error;

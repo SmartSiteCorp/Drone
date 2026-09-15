@@ -4,7 +4,12 @@ import { getActiveRelayForDrone } from "../../modules/relay-links/relay-links.se
 
 type CommandLabel =
   | "ARM"
+  | "ARM_FORCE"
   | "DISARM"
+  | "GUIDED"
+  | "STABILIZE"
+  | "AUTO"
+  | "START"
   | "Mission Auto"
   | "Loiter"
   | "RTL"
@@ -26,7 +31,12 @@ type CommandAck =
 
 const ALLOWED: Record<CommandLabel, true> = {
   ARM: true,
+  ARM_FORCE: true,
   DISARM: true,
+  GUIDED: true,
+  STABILIZE: true,
+  AUTO: true,
+  START: true,
   "Mission Auto": true,
   Loiter: true,
   RTL: true,
@@ -133,11 +143,20 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
         return;
       }
 
+      const relayRoom = roomDevice(relayId);
+      const relaySocketCount = io.sockets.adapter.rooms.get(relayRoom)?.size ?? 0;
+
+      if (relaySocketCount === 0) {
+        ack?.({
+          ok: false,
+          error: "Relay offline: aucun socket relay connecté pour ce drone",
+        });
+        return;
+      }
+
       const commandId = `cmd_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-      ack?.({ ok: true, commandId, acceptedAt: Date.now() });
-
-      await dispatchToDroneRelay(io, {
+      const deliveredTo = await dispatchToDroneRelay(io, {
         commandId,
         label,
         droneId,
@@ -148,11 +167,22 @@ export function registerCommandHandlers(io: Server, socket: Socket) {
         motor: label === "MOTOR_TEST" ? (motor ?? "ALL") : undefined,
       });
 
+      if (deliveredTo === 0) {
+        ack?.({
+          ok: false,
+          error: "Relay indisponible: commande non livrée",
+        });
+        return;
+      }
+
+      ack?.({ ok: true, commandId, acceptedAt: Date.now() });
+
       socket.emit("commande:status", {
         commandId,
         status: "sent_to_relay",
         droneId,
         relayId,
+        deliveredTo,
         ts: Date.now(),
       });
     } catch (err) {
@@ -182,7 +212,10 @@ async function dispatchToDroneRelay(
     motor?: number | "ALL";
   },
 ) {
-  io.to(roomDevice(data.relayId)).emit("relay:command", {
+  const relayRoom = roomDevice(data.relayId);
+  const relaySocketCount = io.sockets.adapter.rooms.get(relayRoom)?.size ?? 0;
+
+  io.to(relayRoom).emit("relay:command", {
     commandId: data.commandId,
     label: data.label,
     droneId: data.droneId,
@@ -195,4 +228,6 @@ async function dispatchToDroneRelay(
         }
       : {}),
   });
+
+  return relaySocketCount;
 }
