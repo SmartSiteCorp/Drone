@@ -163,6 +163,16 @@ Quand commencer vite:
    - MAVLink heartbeat received
    - telemetry:push ...
 
+### Test API avec deux drones
+
+Avec l'API et PostgreSQL demarres, le test cree automatiquement deux couples relais-drone distincts et un dashboard, puis les supprime a la fin. Lancer :
+
+```powershell
+npm run test:multi-drones
+```
+
+Le test verifie que chaque relay ne peut publier que pour son drone, que chaque dashboard ne recoit que la telemetrie de son drone et que les commandes `Stop` arrivent uniquement au relay associe. Il ne verifie pas la livraison MAVLink ni le vol reel. Voir `test/README_MULTI_DRONES.md` pour les details.
+
 ## 8) Troubleshooting
 
 ### 8.1 `ConnectionError: namespace /`
