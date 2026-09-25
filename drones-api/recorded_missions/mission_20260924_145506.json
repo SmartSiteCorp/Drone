@@ -1,0 +1,59 @@
+{
+    "created_at": "2026-09-24T14:55:06.773555",
+    "waypoint_count": 4,
+    "recording": {
+        "sample_interval_seconds": 0.25,
+        "minimum_distance_m": 1.0,
+        "minimum_altitude_change_m": 0.5
+    },
+    "points": [
+        {
+            "timestamp": "2026-09-24T14:54:58.676",
+            "time_unix": 1790254498.6760182,
+            "latitude": 48.8917999,
+            "longitude": 2.2381,
+            "altitude_msl": 49.35,
+            "relative_altitude": -0.005,
+            "heading": 0.59,
+            "velocity_north": -0.01,
+            "velocity_east": 0.01,
+            "velocity_down": 0.0
+        },
+        {
+            "timestamp": "2026-09-24T14:55:00.760",
+            "time_unix": 1790254500.7609642,
+            "latitude": 48.8917999,
+            "longitude": 2.2381,
+            "altitude_msl": 49.35,
+            "relative_altitude": -0.005,
+            "heading": 0.6,
+            "velocity_north": -0.01,
+            "velocity_east": 0.01,
+            "velocity_down": 0.0
+        },
+        {
+            "timestamp": "2026-09-24T14:55:02.786",
+            "time_unix": 1790254502.7862995,
+            "latitude": 48.8917999,
+            "longitude": 2.2381,
+            "altitude_msl": 49.35,
+            "relative_altitude": -0.006,
+            "heading": 0.61,
+            "velocity_north": -0.01,
+            "velocity_east": 0.01,
+            "velocity_down": 0.0
+        },
+        {
+            "timestamp": "2026-09-24T14:55:04.821",
+            "time_unix": 1790254504.821134,
+            "latitude": 48.8917998,
+            "longitude": 2.2381,
+            "altitude_msl": 49.35,
+            "relative_altitude": -0.006,
+            "heading": 0.6,
+            "velocity_north": -0.01,
+            "velocity_east": 0.01,
+            "velocity_down": 0.0
+        }
+    ]
+}
