@@ -6,6 +6,7 @@ type CommandLabel =
   | "ARM"
   | "ARM_FORCE"
   | "DISARM"
+  | "TAKEOFF"
   | "GUIDED"
   | "STABILIZE"
   | "AUTO"
@@ -33,6 +34,7 @@ const ALLOWED: Record<CommandLabel, true> = {
   ARM: true,
   ARM_FORCE: true,
   DISARM: true,
+  TAKEOFF: true,
   GUIDED: true,
   STABILIZE: true,
   AUTO: true,

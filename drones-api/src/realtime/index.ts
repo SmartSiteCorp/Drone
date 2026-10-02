@@ -3,6 +3,7 @@ import { onConnection } from "./handlers/connection";
 import { registerTelemetryHandlers } from "./handlers/telemetry";
 import { registerCommandHandlers } from "./handlers/commands";
 import { registerMissionHandlers } from "./handlers/missions";
+import { registerControlHandlers } from "./handlers/control";
 
 export function registerSocketHandlers(io: Server) {
   io.on("connection", (socket) => {
@@ -14,5 +15,6 @@ export function registerSocketHandlers(io: Server) {
     registerTelemetryHandlers(io, socket);
     registerCommandHandlers(io, socket);
     registerMissionHandlers(io, socket);
+    registerControlHandlers(io, socket);
   });
 }
