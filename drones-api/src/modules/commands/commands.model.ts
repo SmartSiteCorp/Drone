@@ -2,6 +2,7 @@ export const COMMAND_LABELS = [
   "ARM",
   "ARM_FORCE",
   "DISARM",
+  "TAKEOFF",
   "GUIDED",
   "STABILIZE",
   "AUTO",

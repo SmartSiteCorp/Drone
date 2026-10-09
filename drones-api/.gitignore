@@ -53,10 +53,12 @@ logs/
 # =========================
 *.pid
 *.seed
-
+*/tests/*
 # =========================
 # Python
 # =========================
 __pycache__/
+*recorded_missions/*
+
 *.py[cod]
 .pytest_cache/
