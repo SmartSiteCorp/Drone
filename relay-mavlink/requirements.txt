@@ -1,0 +1,11 @@
+# Fichier requirements.txt pour send_telemetry_arducopter.py
+
+# Ajoutez ici les dépendances nécessaires pour exécuter le script Python.
+# Exemple de dépendances courantes pour un script de socket et de télémétrie:
+
+pyserial
+pymavlink
+python-socketio
+websocket-client
+python-dotenv
+# Ajoutez d'autres dépendances si le script utilise des modules supplémentaires
