@@ -1,7 +1,13 @@
-import airsim
 import csv
 import time
 import math
+import collections
+import collections.abc
+
+if not hasattr(collections, "MutableMapping"):
+    collections.MutableMapping = collections.abc.MutableMapping
+
+import airsim
 
 from datetime import datetime
 from pathlib import Path

@@ -1,0 +1,28 @@
+logLevel: info
+
+authMethod: http
+authHTTPAddress: http://host.docker.internal:7281/api/video/mediamtx-auth
+authHTTPExclude:
+  - action: api
+  - action: metrics
+  - action: pprof
+
+rtsp: true
+rtspAddress: :8554
+rtspTransports: [tcp]
+
+hls: true
+hlsAddress: :8888
+hlsAllowOrigins: ["*"]
+
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigins: ["*"]
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts: [localhost]
+
+paths:
+  all_others:
+    source: publisher

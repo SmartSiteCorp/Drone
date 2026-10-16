@@ -3,6 +3,7 @@ import { devicesRoutes } from "../modules/devices/devices.routes";
 import { relayLinksRoutes } from "../modules/relay-links/relay-links.routes";
 import { telemetryRoutes } from "../modules/telemetry/telemetry.routes";
 import { commandsRoutes } from "../modules/commands/commands.routes";
+import { videoRoutes } from "../modules/video/video.routes";
 
 export const router = Router();
 
@@ -27,3 +28,5 @@ router.use("/api/telemetry", telemetryRoutes);
 router.use("/api/flight-info", telemetryRoutes);
 // Envoi de commandes vers drone via relay
 router.use("/api/commands", commandsRoutes);
+// Flux vidéo live relayé depuis le bridge caméra.
+router.use("/api/video", videoRoutes);
