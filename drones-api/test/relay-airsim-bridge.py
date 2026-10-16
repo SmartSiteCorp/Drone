@@ -1,4 +1,5 @@
 import os
+import math
 import time
 import json
 import threading
@@ -39,6 +40,10 @@ MAVLINK_ENDPOINT = os.getenv(
     "udpin:0.0.0.0:14550",
 )
 PUSH_HZ = float(os.getenv("PUSH_HZ", "2"))
+CONTROL_MAX_SPEED_XY = float(os.getenv("CONTROL_MAX_SPEED_XY", "3.0"))
+CONTROL_MAX_SPEED_Z = float(os.getenv("CONTROL_MAX_SPEED_Z", "1.5"))
+CONTROL_MAX_YAW_RATE_DEG = float(os.getenv("CONTROL_MAX_YAW_RATE_DEG", "45.0"))
+CONTROL_TIMEOUT_SEC = 0.75
 
 
 if not RELAY_API_KEY:
@@ -102,6 +107,10 @@ mission_lock = threading.Lock()
 # Sérialise les lectures MAVLink pour éviter que deux threads
 # consomment les mêmes messages (ACK, HEARTBEAT, mission requests).
 mav_io_lock = threading.Lock()
+mav_send_lock = threading.Lock()
+
+control_state_lock = threading.Lock()
+control_state_by_drone: Dict[str, Dict[str, Any]] = {}
 
 # Pendant un upload, la boucle télémétrie ne doit pas
 # consommer les MISSION_REQUEST_INT / MISSION_ACK.
@@ -274,6 +283,69 @@ def wait_for_mode(
 
     print(f"[bridge] Mode '{expected_mode}' non confirmé")
     return False
+
+
+def send_control_velocity(
+    drone_id: str,
+    forward: float,
+    right: float,
+    vertical: float,
+    yaw: float,
+) -> bool:
+    if mav_conn is None:
+        return False
+
+    target = target_by_drone.get(drone_id)
+    if not target:
+        print(f"[bridge] No MAVLink target learned yet for drone={drone_id}")
+        return False
+
+    type_mask = (
+        1 | 2 | 4 | 64 | 128 | 256 | 1024
+    )
+
+    with mav_send_lock:
+        mav_conn.mav.set_position_target_local_ned_send(
+            int(time.monotonic() * 1000) & 0xFFFFFFFF,
+            int(target["sysid"]),
+            int(target["compid"]),
+            mavutil.mavlink.MAV_FRAME_BODY_NED,
+            type_mask,
+            0,
+            0,
+            0,
+            forward * CONTROL_MAX_SPEED_XY,
+            right * CONTROL_MAX_SPEED_XY,
+            -vertical * CONTROL_MAX_SPEED_Z,
+            0,
+            0,
+            0,
+            0,
+            yaw * math.radians(CONTROL_MAX_YAW_RATE_DEG),
+        )
+
+    return True
+
+
+def control_watchdog_loop() -> None:
+    while True:
+        now = time.monotonic()
+        expired_drone_ids = []
+
+        with control_state_lock:
+            for drone_id, state in control_state_by_drone.items():
+                if (
+                    not state["expired"]
+                    and now - state["last_update"] > CONTROL_TIMEOUT_SEC
+                ):
+                    state["expired"] = True
+                    expired_drone_ids.append(drone_id)
+
+        for drone_id in expired_drone_ids:
+            if send_control_velocity(drone_id, 0, 0, 0, 0):
+                print(f"[bridge] Control watchdog stopped drone={drone_id}")
+
+        time.sleep(0.05)
 
 
 def start_mission(
@@ -482,6 +554,36 @@ def on_relay_command(
         return
 
     # --------------------------------------------------------
+    # TAKEOFF (3 m, sans armement automatique)
+    # --------------------------------------------------------
+
+    if label == "TAKEOFF":
+        if not send_mode_change("GUIDED", target_sysid):
+            print(
+                "[bridge] Takeoff annulé: "
+                "GUIDED non confirmé"
+            )
+            return
+
+        mav_conn.mav.command_long_send(
+            target_sysid,
+            target_compid,
+            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            3.0,
+        )
+
+        print("[bridge] Sent MAV_CMD_NAV_TAKEOFF altitude=3.0 m")
+        wait_command_ack(mavutil.mavlink.MAV_CMD_NAV_TAKEOFF)
+        return
+
+    # --------------------------------------------------------
     # MODES
     # --------------------------------------------------------
 
@@ -551,6 +653,82 @@ def on_relay_command(
         f"[bridge] Command label '{label}' "
         "received (no MAVLink mapping yet)"
     )
+
+
+@sio.on("relay:control")
+def on_relay_control(
+    payload: Dict[str, Any],
+) -> None:
+    if not isinstance(payload, dict):
+        return
+
+    drone_id = payload.get("droneId")
+    session_id = payload.get("sessionId")
+    seq = payload.get("seq")
+    axes = {
+        name: payload.get(name)
+        for name in ("forward", "right", "vertical", "yaw")
+    }
+
+    if (
+        not isinstance(drone_id, str)
+        or not isinstance(session_id, str)
+        or not isinstance(seq, int)
+        or isinstance(seq, bool)
+        or any(
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            or value < -1
+            or value > 1
+            for value in axes.values()
+        )
+    ):
+        print("[bridge] Ignoring invalid relay:control payload")
+        return
+
+    with control_state_lock:
+        previous = control_state_by_drone.get(drone_id)
+        if previous and previous["session_id"] == session_id:
+            if seq <= previous["seq"] or previous["expired"]:
+                return
+
+        control_state_by_drone[drone_id] = {
+            "session_id": session_id,
+            "seq": seq,
+            "last_update": time.monotonic(),
+            "expired": False,
+        }
+
+    if send_control_velocity(drone_id, **axes):
+        print(
+            f"[bridge] Control axes sent drone={drone_id} "
+            f"seq={seq} forward={axes['forward']:.2f} "
+            f"right={axes['right']:.2f} "
+            f"vertical={axes['vertical']:.2f} yaw={axes['yaw']:.2f}"
+        )
+
+
+@sio.on("relay:control:stop")
+def on_relay_control_stop(
+    payload: Dict[str, Any],
+) -> None:
+    if not isinstance(payload, dict):
+        return
+
+    drone_id = payload.get("droneId")
+    session_id = payload.get("sessionId")
+    if not isinstance(drone_id, str) or not isinstance(session_id, str):
+        return
+
+    with control_state_lock:
+        current = control_state_by_drone.get(drone_id)
+        if not current or current["session_id"] != session_id:
+            return
+        control_state_by_drone.pop(drone_id, None)
+
+    if send_control_velocity(drone_id, 0, 0, 0, 0):
+        print(f"[bridge] Control stopped drone={drone_id}")
 
 
 # ============================================================
@@ -1292,6 +1470,11 @@ def main() -> None:
     print(
         "[bridge] MAVLink heartbeat received"
     )
+
+    threading.Thread(
+        target=control_watchdog_loop,
+        daemon=True,
+    ).start()
 
     state_by_drone: Dict[
         str,

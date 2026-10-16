@@ -8,7 +8,7 @@ export async function sendCommandHandler(req: Request, res: Response) {
     return res.status(400).json({
       error: "Invalid payload",
       expected: {
-        label: "ARM|ARM_FORCE|DISARM|GUIDED|STABILIZE|AUTO|START|Mission Auto|Loiter|RTL|Land|Stop",
+        label: "ARM|ARM_FORCE|DISARM|TAKEOFF|GUIDED|STABILIZE|AUTO|START|Mission Auto|Loiter|RTL|Land|Stop",
         droneId: "uuid",
       },
     });
